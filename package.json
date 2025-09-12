@@ -1,7 +1,7 @@
 {
-  "name": "ts-template",
+  "name": "wayback-machine-downloader",
   "version": "1.0.0",
-  "description": "",
+  "description": "Download web pages from the Wayback Machine",
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -15,8 +15,14 @@
   },
   "author": "",
   "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.0",
+    "p-queue": "^8.1.0",
+    "progress": "^2.0.3"
+  },
   "devDependencies": {
     "@types/node": "^24.2.0",
+    "@types/progress": "^2.0.7",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
     "@typescript-eslint/parser": "^8.39.0",
     "eslint": "^9.32.0",
