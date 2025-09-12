@@ -13,15 +13,15 @@
 //   ✔ ts-node wayback-downloader.ts https://example.com/blog --from 2018 --to 2020 -c 20 --rewrite
 //   ✔ node build/index.js <URL> [flags]   # after tsc or tsup build
 
-import PQueue from "p-queue";
-import ProgressBar from "progress";
-import prompts from "prompts";
-import path from "node:path";
-import { getOpts, getRootUrl } from "./cli/program.js";
-import type { CLIOptions } from "./types/options.js";
-import { listCaptures } from "./requests/cdx.js";
-import { downloadSnapshot } from "./commands/downloadSnapshot.js";
-import { deployWithVercel } from "./deploy/vercel.js";
+import PQueue from 'p-queue';
+import ProgressBar from 'progress';
+import prompts from 'prompts';
+import path from 'node:path';
+import { getOpts, getRootUrl } from './cli/program.js';
+import type { CLIOptions } from './types/options.js';
+import { listCaptures } from './requests/cdx.js';
+import { downloadSnapshot } from './commands/downloadSnapshot.js';
+import { deployWithVercel } from './deploy/vercel.js';
 
 //---------------------------------------------------------------------
 // CLI options and paths
@@ -48,11 +48,11 @@ if (opts.deploy) {
   //---------------------------------------------------------------------
   (async () => {
     if (!rootUrl) {
-      console.error("A <url> argument is required unless using --deploy");
+      console.error('A <url> argument is required unless using --deploy');
       process.exit(1);
     }
 
-    console.log("Querying CDX…");
+    console.log('Querying CDX…');
     let captures = await listCaptures(rootUrl, opts);
     console.log(`Found ${captures.length} captures for ${rootUrl}`);
 
@@ -71,14 +71,14 @@ if (opts.deploy) {
       };
 
       const response = await prompts({
-        type: "select",
-        name: "ts",
-        message: "Select a snapshot timestamp",
+        type: 'select',
+        name: 'ts',
+        message: 'Select a snapshot timestamp',
         choices: timestamps.map((t) => ({ title: `${t}  (${human(t)})`, value: t })),
       });
 
       if (!response.ts) {
-        console.log("No selection made. Exiting.");
+        console.log('No selection made. Exiting.');
         process.exit(1);
       }
 
@@ -87,15 +87,17 @@ if (opts.deploy) {
       console.log(`Selected ${selectedTs} – ${captures.length} snapshot will be downloaded.`);
     }
 
-    const bar = new ProgressBar("  downloading [:bar] :current/:total (:rate/s)", {
+    const bar = new ProgressBar('  downloading [:bar] :current/:total (:rate/s)', {
       total: captures.length,
       width: 30,
     });
 
-    const queue = new PQueue({ concurrency: opts.concurrency });  
-    captures.forEach((cap) => queue.add(() => downloadSnapshot(outDir, cap, opts).then(() => bar.tick())));
+    const queue = new PQueue({ concurrency: opts.concurrency });
+    captures.forEach((cap) =>
+      queue.add(() => downloadSnapshot(outDir, cap, opts).then(() => bar.tick())),
+    );
 
     await queue.onIdle();
-    console.log("✔ All done – check", outDir);
+    console.log('✔ All done – check', outDir);
   })();
 }

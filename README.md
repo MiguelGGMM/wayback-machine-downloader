@@ -1,10 +1,13 @@
 # wayback-machine-downloader
+
 Download web pages from the Wayback Machine
 
 ## Overview
+
 This is a TypeScript-first CLI that mirrors snapshots from the Internet Archive's Wayback Machine.
 
 Key features:
+
 - Interactive snapshot selection by default (pick a timestamp to download)
 - Exact page snapshots matching Wayback’s count (using CDX `matchType=exact`)
 - Concurrent downloads with retry and resume
@@ -14,16 +17,19 @@ Key features:
 - Deploy previously downloaded snapshots to Vercel with a single flag
 
 ## Requirements
+
 - Node.js 20+ (ESM)
 - pnpm (recommended)
 
 ## Install & Build
+
 ```bash
 pnpm i
 pnpm run build
 ```
 
 ## Usage
+
 ```bash
 # Interactive: choose a snapshot timestamp to download
 pnpm run start -- https://example.com
@@ -45,6 +51,7 @@ pnpm run start -- --from 20190101 --to 20201231 https://example.com
 ```
 
 ### Deploy to Vercel
+
 Requires a previously downloaded snapshot in your `--out` directory.
 
 ```bash
@@ -62,6 +69,7 @@ pnpm run start -- --deploy --out ./wayback --select 20190520123456 --name my-arc
 ```
 
 ### Flags
+
 - `-o, --out <dir>` Output directory (default: `./wayback`)
 - `-c, --concurrency <n>` Max concurrent downloads (default: 10)
 - `--from <YYYYMMDD>` Earliest timestamp (inclusive)
@@ -77,6 +85,7 @@ pnpm run start -- --deploy --out ./wayback --select 20190520123456 --name my-arc
 - `--name <project>` Project name to use on Vercel (maps to `vercel --name`)
 
 ### Output layout
+
 All files for the selected snapshot are written under a timestamped folder:
 
 ```
@@ -88,6 +97,7 @@ wayback/
 ```
 
 ## Development
+
 ```bash
 pnpm run dev          # tsx watch mode for local development
 pnpm run build        # tsc compile to dist/
@@ -97,6 +107,7 @@ pnpm run format:write # Prettier write
 ```
 
 ## Project structure
+
 ```
 src/
   cli/
@@ -118,6 +129,7 @@ src/
 ```
 
 ## Tests
+
 This project uses [Vitest](https://vitest.dev/).
 
 ```bash
@@ -126,6 +138,7 @@ pnpm run test:watch   # watch mode
 ```
 
 Covered units:
+
 - `helpers/fs.ts` → `targetPath()` mapping of URLs to disk paths
 - `helpers/html.ts` → `extractAssetUrls()` parsing
 - `helpers/wayback.ts` → `waybackUrlFor()` Wayback modifier selection
@@ -133,20 +146,24 @@ Covered units:
 - `deploy/vercel.ts` → `ensureVercelJson()` and `buildVercelArgs()`
 
 Skip prompt; download everything in the range:
+
 ```bash
 pnpm run start -- https://example.com --no-interactive --from 20200101 --to 20201231
 ```
 
 Download all files for the selected snapshot (no digest collapse):
+
 ```bash
 pnpm run start -- https://example.com --no-dedup
 ```
 
 Higher concurrency with HTML rewrite:
+
 ```bash
 pnpm run start -- https://example.com -c 20 --rewrite
 ```
 
 ## Notes
+
 - This project is ESM (`"type": "module"`) and compiles with `module: NodeNext`.
 - When running without arguments, the CLI will print help and exit.

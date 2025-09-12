@@ -13,7 +13,7 @@ export default [
     languageOptions: {
       parser,
       parserOptions: {
-        project: ['./tsconfig.json'],        // enable type-aware rules (optional but nice)
+        project: ['./tsconfig.json'], // enable type-aware rules (optional but nice)
         tsconfigRootDir: import.meta.dirname,
         ecmaVersion: 'latest',
         sourceType: 'module',
@@ -26,7 +26,10 @@ export default [
       // turn on some TS rules; add more as you like
       '@typescript-eslint/consistent-type-imports': 'warn',
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      '@typescript-eslint/no-misused-promises': ['warn', { checksVoidReturn: { attributes: false } }],
+      '@typescript-eslint/no-misused-promises': [
+        'warn',
+        { checksVoidReturn: { attributes: false } },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@/no-duplicate-imports': 'warn',
     },

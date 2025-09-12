@@ -1,6 +1,6 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import type { Capture } from "../types/capture.js";
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import type { Capture } from '../types/capture.js';
 
 export async function ensureDir(dir: string) {
   await fs.mkdir(dir, { recursive: true });
@@ -14,7 +14,7 @@ export async function ensureDir(dir: string) {
 export function targetPath(outRoot: string, cap: Capture): string {
   const u = new URL(cap.original);
   let p = u.pathname;
-  if (p.endsWith("/")) p += "index.html";
-  const cleanPath = p.replace(/^\//, "");
+  if (p.endsWith('/')) p += 'index.html';
+  const cleanPath = p.replace(/^\//, '');
   return path.join(outRoot, cap.timestamp, cleanPath);
 }

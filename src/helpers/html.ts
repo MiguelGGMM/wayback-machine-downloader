@@ -16,9 +16,11 @@ export function extractAssetUrls(html: string, baseUrl: string): string[] {
   // srcset (take first URL of each descriptor)
   const srcsetRegex = /\bsrcset=("|')(.*?)\1/gi;
   while ((m = srcsetRegex.exec(html))) {
-    const parts = m[2].split(",");
+    const parts = m[2].split(',');
     for (const p of parts) add(p.trim().split(/\s+/)[0]);
   }
   // Basic filtering to avoid mailto:, data:, javascript:
-  return Array.from(urls).filter((u) => /^(https?:)?\//.test(u) && !u.startsWith("data:") && !u.startsWith("javascript:"));
+  return Array.from(urls).filter(
+    (u) => /^(https?:)?\//.test(u) && !u.startsWith('data:') && !u.startsWith('javascript:'),
+  );
 }
