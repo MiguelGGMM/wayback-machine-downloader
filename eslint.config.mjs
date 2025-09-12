@@ -5,7 +5,7 @@ import pluginTs from '@typescript-eslint/eslint-plugin';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
-  { ignores: ['dist', 'node_modules'] },
+  { ignores: ['dist', 'node_modules', 'tests'] },
   //js.configs.recommended,
   { ...js.configs.recommended, files: ['**/*.js', '**/*.mjs', '**/*.cjs'] },
   {

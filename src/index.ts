@@ -18,7 +18,6 @@ import ProgressBar from "progress";
 import prompts from "prompts";
 import path from "node:path";
 import { getOpts, getRootUrl } from "./cli/program.js";
-import type { Capture } from "./types/capture.js";
 import type { CLIOptions } from "./types/options.js";
 import { listCaptures } from "./requests/cdx.js";
 import { downloadSnapshot } from "./commands/downloadSnapshot.js";
