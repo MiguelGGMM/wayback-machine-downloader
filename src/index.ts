@@ -28,6 +28,7 @@ import { pipeline } from "node:stream/promises";
 interface Capture {
   timestamp: string; // YYYYMMDDhhmmss
   original: string;
+  mimetype?: string;
 }
 
 //---------------------------------------------------------------------
@@ -42,6 +43,7 @@ program
   .option("--from <YYYYMMDD>", "Earliest timestamp (inclusive)")
   .option("--to <YYYYMMDD>", "Latest timestamp (inclusive)")
   .option("--rewrite", "Rewrite HTML to strip web.archive.org prefixes")
+  .option("--debug", "Write capture metadata to debug.json under each timestamp folder")
   .option("--no-interactive", "Do not prompt; download all matched captures directly")
   .option("--no-dedup", "Disable digest deduplication in CDX query")
   .parse();
@@ -65,7 +67,7 @@ function buildCdxUrl(): string {
     url: rootUrl.endsWith("/*") ? rootUrl : `${rootUrl}/*`,
     output: "json",
     filter: "statuscode:200",
-    fl: "timestamp,original",
+    fl: "timestamp,original,mimetype",
   });
   if (!opts.noDedup) params.append("collapse", "digest");
   if (opts.from) params.append("from", opts.from);
@@ -77,23 +79,29 @@ async function listCaptures(): Promise<Capture[]> {
   const cdxUrl = buildCdxUrl();
   const res = await fetch(cdxUrl);
   if (!res.ok) throw new Error(`CDX query failed: ${res.status} ${res.statusText}`);
-  const rows: [string, string][] = await res.json();
+  const rows: [string, string, string?][] = await res.json();
   // First row is header
-  return rows.slice(1).map(([timestamp, original]) => ({ timestamp, original }));
+  return rows.slice(1).map(([timestamp, original, mimetype]) => ({ timestamp, original, mimetype }));
 }
 
-function buildSnapshotUrl({ timestamp, original }: Capture): string {
-  return `https://web.archive.org/web/${timestamp}id_/${original}`;
-}
-
-async function ensureDir(p: string) {
-  await fs.mkdir(p, { recursive: true });
+function buildSnapshotUrl({ timestamp, original, mimetype }: Capture): string {
+  // Choose Wayback content modifiers based on mimetype for best fidelity
+  let mod = "id_"; // identity (no rewriting)
+  const mt = (mimetype || "").toLowerCase();
+  if (mt.startsWith("image/")) mod = "im_"; // images
+  else if (mt.includes("css")) mod = "cs_"; // stylesheets
+  else if (mt.includes("javascript") || mt.includes("ecmascript")) mod = "js_"; // scripts
+  return `https://web.archive.org/web/${timestamp}${mod}/${original}`;
 }
 
 function targetPath(outRoot: string, cap: Capture): string {
   const u = new URL(cap.original);
   const filePath = path.join(outRoot, cap.timestamp, u.hostname, u.pathname.replace(/\/$/, "index.html"));
   return filePath;
+}
+
+async function ensureDir(dir: string) {
+  await fs.mkdir(dir, { recursive: true });
 }
 
 async function downloadCapture(outRoot: string, cap: Capture) {
@@ -114,10 +122,18 @@ async function downloadCapture(outRoot: string, cap: Capture) {
     await pipeline(res.body!, fileStream);
 
     // Optionally rewrite HTML
-    if (opts.rewrite && res.headers.get("content-type")?.includes("text/html")) {
+    if (!opts.debug && opts.rewrite && res.headers.get("content-type")?.includes("text/html")) {
       let html = await fs.readFile(dest, "utf8");
       html = html.replace(/https?:\/\/web\.archive\.org\/web\/[0-9]+id?\/_/g, "");
       await fs.writeFile(dest, html);
+    }
+
+    // Debug: write capture metadata to timestamp folder
+    if (opts.debug) {
+      const debugPath = path.join(outRoot, cap.timestamp, "debug.json");
+      await ensureDir(path.dirname(debugPath));
+      const line = JSON.stringify(cap) + "\n";
+      await fs.appendFile(debugPath, line, { encoding: "utf8" });
     }
     return;
   }
