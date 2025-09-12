@@ -44,6 +44,7 @@ program
   .option("--to <YYYYMMDD>", "Latest timestamp (inclusive)")
   .option("--rewrite", "Rewrite HTML to strip web.archive.org prefixes")
   .option("--debug", "Write capture metadata to debug.json under each timestamp folder")
+  .option("--include-external", "Also download third-party assets referenced by the page")
   .option("--no-interactive", "Do not prompt; download all matched captures directly")
   .option("--no-dedup", "Disable digest deduplication in CDX query")
   .parse();
@@ -64,15 +65,133 @@ const outDir = path.resolve(opts.out);
 function buildCdxUrl(): string {
   const base = "https://web.archive.org/cdx/search/cdx";
   const params = new URLSearchParams({
-    url: rootUrl.endsWith("/*") ? rootUrl : `${rootUrl}/*`,
+    url: rootUrl, // exact URL only
     output: "json",
     filter: "statuscode:200",
     fl: "timestamp,original,mimetype",
+    matchType: "exact",
   });
   if (!opts.noDedup) params.append("collapse", "digest");
   if (opts.from) params.append("from", opts.from);
   if (opts.to) params.append("to", opts.to);
   return `${base}?${params}`;
+}
+
+function targetPath(outRoot: string, cap: Capture): string {
+  const u = new URL(cap.original);
+  // Put everything under the timestamp folder, keeping only the URL path structure
+  let p = u.pathname;
+  if (p.endsWith("/")) p += "index.html"; // "/" -> "/index.html", "/dir/" -> "/dir/index.html"
+  // Remove leading slash for safe join
+  const cleanPath = p.replace(/^\//, "");
+  const filePath = path.join(outRoot, cap.timestamp, cleanPath);
+  return filePath;
+}
+
+async function ensureDir(dir: string) {
+  await fs.mkdir(dir, { recursive: true });
+}
+
+function waybackUrlFor(originalUrl: string, timestamp: string): string {
+  // Keep identity by default; Wayback will serve the asset content at that time
+  const ext = originalUrl.split("?")[0].split("#")[0].toLowerCase();
+  let mod = "id_";
+  if (/(\.png|\.jpg|\.jpeg|\.gif|\.webp|\.svg|\.ico|\.bmp|\.tif|\.tiff)$/.test(ext)) mod = "im_";
+  else if (/(\.css)$/.test(ext)) mod = "cs_";
+  else if (/(\.js)$/.test(ext)) mod = "js_";
+  return `https://web.archive.org/web/${timestamp}${mod}/${originalUrl}`;
+}
+
+function extractAssetUrls(html: string, baseUrl: string): string[] {
+  const urls = new Set<string>();
+  const add = (u: string | null | undefined) => {
+    if (!u) return;
+    try {
+      const abs = new URL(u, baseUrl).toString();
+      urls.add(abs);
+    } catch {
+      /* ignore invalid */
+    }
+  };
+  // src, href in common tags
+  const attrRegex = /\b(?:src|href)=("|')(.*?)\1/gi;
+  let m: RegExpExecArray | null;
+  while ((m = attrRegex.exec(html))) add(m[2]);
+  // srcset (take first URL of each descriptor)
+  const srcsetRegex = /\bsrcset=("|')(.*?)\1/gi;
+  while ((m = srcsetRegex.exec(html))) {
+    const parts = m[2].split(",");
+    for (const p of parts) add(p.trim().split(/\s+/)[0]);
+  }
+  // Basic filtering to avoid mailto:, data:, javascript:
+  return Array.from(urls).filter((u) => /^(https?:)?\//.test(u) && !u.startsWith("data:") && !u.startsWith("javascript:"));
+}
+
+async function downloadUrlToPath(outRoot: string, timestamp: string, originalUrl: string) {
+  const dest = targetPath(outRoot, { timestamp, original: originalUrl });
+  if (existsSync(dest)) return;
+  await ensureDir(path.dirname(dest));
+  const url = waybackUrlFor(originalUrl, timestamp);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      if (attempt === 3) throw new Error(`HTTP ${res.status} at ${url}`);
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+      continue;
+    }
+    const fileStream = createWriteStream(dest);
+    await pipeline(res.body!, fileStream);
+    return;
+  }
+}
+
+async function downloadSnapshot(outRoot: string, cap: Capture) {
+  // Download main HTML for the exact page
+  const dest = targetPath(outRoot, cap);
+  if (!existsSync(dest)) {
+    await ensureDir(path.dirname(dest));
+    const url = waybackUrlFor(cap.original, cap.timestamp);
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const res = await fetch(url);
+      if (!res.ok) {
+        if (attempt === 3) throw new Error(`HTTP ${res.status} at ${url}`);
+        await new Promise((r) => setTimeout(r, 1000 * attempt));
+        continue;
+      }
+      const fileStream = createWriteStream(dest);
+      await pipeline(res.body!, fileStream);
+      // Optional rewrite of HTML unless debug is on (per user's last change)
+      if (!opts.debug && opts.rewrite && res.headers.get("content-type")?.includes("text/html")) {
+        let html = await fs.readFile(dest, "utf8");
+        html = html.replace(/https?:\/\/web\.archive\.org\/web\/[0-9]+id?\/_/g, "");
+        await fs.writeFile(dest, html);
+      }
+      break;
+    }
+  }
+
+  // Debug: write capture metadata
+  if (opts.debug) {
+    const debugPath = path.join(outRoot, cap.timestamp, "debug.json");
+    await ensureDir(path.dirname(debugPath));
+    const line = JSON.stringify(cap) + "\n";
+    await fs.appendFile(debugPath, line, { encoding: "utf8" });
+  }
+
+  // Parse HTML and queue same-origin asset downloads only
+  try {
+    const html = await fs.readFile(dest, "utf8");
+    const assets = extractAssetUrls(html, cap.original);
+    const rootHost = new URL(cap.original).hostname;
+    const sameHostAssets = assets.filter((a) => {
+      try { return new URL(a).hostname === rootHost; } catch { return false; }
+    });
+    const assetsToFetch = opts.includeExternal ? assets : sameHostAssets;
+    const queue = new PQueue({ concurrency: Math.max(2, Math.min(10, opts.concurrency)) });
+    await Promise.all(assetsToFetch.map((a) => queue.add(() => downloadUrlToPath(outRoot, cap.timestamp, a).catch(() => {}))));
+  } catch {
+    // If read or parse fails, skip assets silently
+  }
 }
 
 async function listCaptures(): Promise<Capture[]> {
@@ -82,61 +201,6 @@ async function listCaptures(): Promise<Capture[]> {
   const rows: [string, string, string?][] = await res.json();
   // First row is header
   return rows.slice(1).map(([timestamp, original, mimetype]) => ({ timestamp, original, mimetype }));
-}
-
-function buildSnapshotUrl({ timestamp, original, mimetype }: Capture): string {
-  // Choose Wayback content modifiers based on mimetype for best fidelity
-  let mod = "id_"; // identity (no rewriting)
-  const mt = (mimetype || "").toLowerCase();
-  if (mt.startsWith("image/")) mod = "im_"; // images
-  else if (mt.includes("css")) mod = "cs_"; // stylesheets
-  else if (mt.includes("javascript") || mt.includes("ecmascript")) mod = "js_"; // scripts
-  return `https://web.archive.org/web/${timestamp}${mod}/${original}`;
-}
-
-function targetPath(outRoot: string, cap: Capture): string {
-  const u = new URL(cap.original);
-  const filePath = path.join(outRoot, cap.timestamp, u.hostname, u.pathname.replace(/\/$/, "index.html"));
-  return filePath;
-}
-
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
-
-async function downloadCapture(outRoot: string, cap: Capture) {
-  const dest = targetPath(outRoot, cap);
-  if (existsSync(dest)) return; // resume: skip existing
-
-  await ensureDir(path.dirname(dest));
-  const url = buildSnapshotUrl(cap);
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    const res = await fetch(url);
-    if (!res.ok) {
-      if (attempt === 3) throw new Error(`HTTP ${res.status} at ${url}`);
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
-      continue;
-    }
-    // Stream to disk
-    const fileStream = createWriteStream(dest);
-    await pipeline(res.body!, fileStream);
-
-    // Optionally rewrite HTML
-    if (!opts.debug && opts.rewrite && res.headers.get("content-type")?.includes("text/html")) {
-      let html = await fs.readFile(dest, "utf8");
-      html = html.replace(/https?:\/\/web\.archive\.org\/web\/[0-9]+id?\/_/g, "");
-      await fs.writeFile(dest, html);
-    }
-
-    // Debug: write capture metadata to timestamp folder
-    if (opts.debug) {
-      const debugPath = path.join(outRoot, cap.timestamp, "debug.json");
-      await ensureDir(path.dirname(debugPath));
-      const line = JSON.stringify(cap) + "\n";
-      await fs.appendFile(debugPath, line, { encoding: "utf8" });
-    }
-    return;
-  }
 }
 
 //---------------------------------------------------------------------
@@ -175,7 +239,7 @@ async function downloadCapture(outRoot: string, cap: Capture) {
 
     const selectedTs: string = response.ts;
     captures = captures.filter((c) => c.timestamp === selectedTs);
-    console.log(`Selected ${selectedTs} – ${captures.length} files will be downloaded.`);
+    console.log(`Selected ${selectedTs} – ${captures.length} snapshot will be downloaded.`);
   }
 
   const bar = new ProgressBar("  downloading [:bar] :current/:total (:rate/s)", {
@@ -184,7 +248,7 @@ async function downloadCapture(outRoot: string, cap: Capture) {
   });
 
   const queue = new PQueue({ concurrency: opts.concurrency });  
-  captures.forEach((cap) => queue.add(() => downloadCapture(outDir, cap).then(() => bar.tick())));
+  captures.forEach((cap) => queue.add(() => downloadSnapshot(outDir, cap).then(() => bar.tick())));
 
   await queue.onIdle();
   console.log("✔ All done – check", outDir);
