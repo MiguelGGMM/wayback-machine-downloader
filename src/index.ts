@@ -16,6 +16,7 @@
 import { Command } from "commander";
 import PQueue from "p-queue";
 import ProgressBar from "progress";
+import prompts from "prompts";
 import fs from "node:fs/promises";
 import { createWriteStream, existsSync } from "node:fs";
 import path from "node:path";
@@ -41,6 +42,7 @@ program
   .option("--from <YYYYMMDD>", "Earliest timestamp (inclusive)")
   .option("--to <YYYYMMDD>", "Latest timestamp (inclusive)")
   .option("--rewrite", "Rewrite HTML to strip web.archive.org prefixes")
+  .option("--no-interactive", "Do not prompt; download all matched captures directly")
   .option("--no-dedup", "Disable digest deduplication in CDX query")
   .parse();
 
@@ -126,15 +128,46 @@ async function downloadCapture(outRoot: string, cap: Capture) {
 //---------------------------------------------------------------------
 (async () => {
   console.log("Querying CDX…");
-  const captures = await listCaptures();
+  let captures = await listCaptures();
   console.log(`Found ${captures.length} captures for ${rootUrl}`);
+
+  if (opts.interactive) {
+    // Build a unique list of snapshot timestamps for the user to choose from
+    const timestamps = Array.from(new Set(captures.map((c) => c.timestamp))).sort();
+
+    const human = (ts: string) => {
+      const yyyy = ts.slice(0, 4);
+      const mm = ts.slice(4, 6);
+      const dd = ts.slice(6, 8);
+      const hh = ts.slice(8, 10);
+      const mi = ts.slice(10, 12);
+      const ss = ts.slice(12, 14);
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss} UTC`;
+    };
+
+    const response = await prompts({
+      type: "select",
+      name: "ts",
+      message: "Select a snapshot timestamp",
+      choices: timestamps.map((t) => ({ title: `${t}  (${human(t)})`, value: t })),
+    });
+
+    if (!response.ts) {
+      console.log("No selection made. Exiting.");
+      process.exit(1);
+    }
+
+    const selectedTs: string = response.ts;
+    captures = captures.filter((c) => c.timestamp === selectedTs);
+    console.log(`Selected ${selectedTs} – ${captures.length} files will be downloaded.`);
+  }
 
   const bar = new ProgressBar("  downloading [:bar] :current/:total (:rate/s)", {
     total: captures.length,
     width: 30,
   });
 
-  const queue = new PQueue({ concurrency: opts.concurrency });
+  const queue = new PQueue({ concurrency: opts.concurrency });  
   captures.forEach((cap) => queue.add(() => downloadCapture(outDir, cap).then(() => bar.tick())));
 
   await queue.onIdle();
