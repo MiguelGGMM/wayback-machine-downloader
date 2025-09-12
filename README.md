@@ -11,6 +11,7 @@ Key features:
 - Optional HTML rewrite to strip `web.archive.org` prefixes
 - Same-origin asset download by default; optionally include external CDNs with a flag
 - Date range filtering and digest deduplication toggle
+- Deploy previously downloaded snapshots to Vercel with a single flag
 
 ## Requirements
 - Node.js 20+ (ESM)
@@ -43,6 +44,23 @@ pnpm run start -- -o ./archive https://example.com
 pnpm run start -- --from 20190101 --to 20201231 https://example.com
 ```
 
+### Deploy to Vercel
+Requires a previously downloaded snapshot in your `--out` directory.
+
+```bash
+# Login once (if not already)
+pnpm exec vercel login
+
+# Deploy interactively (choose a timestamp folder under --out)
+pnpm run start -- --deploy --out ./wayback
+
+# Deploy a specific timestamp folder
+pnpm run start -- --deploy --out ./wayback --select 20190520123456
+
+# Name the Vercel project and deploy to production
+pnpm run start -- --deploy --out ./wayback --select 20190520123456 --name my-archived-site --prod
+```
+
 ### Flags
 - `-o, --out <dir>` Output directory (default: `./wayback`)
 - `-c, --concurrency <n>` Max concurrent downloads (default: 10)
@@ -53,6 +71,10 @@ pnpm run start -- --from 20190101 --to 20201231 https://example.com
 - `--include-external` Also download third-party assets referenced by the page (CDNs, analytics, etc.)
 - `--no-interactive` Do not prompt; download all matched captures directly
 - `--no-dedup` Disable digest deduplication in CDX query
+- `--deploy` Deploy a previously downloaded snapshot to Vercel
+- `--select <timestamp>` Timestamp folder to deploy (e.g. `20190520123456`). If omitted, you will be prompted
+- `--prod` Deploy to production (equivalent to `vercel --prod`)
+- `--name <project>` Project name to use on Vercel (maps to `vercel --name`)
 
 ### Output layout
 All files for the selected snapshot are written under a timestamped folder:
@@ -81,6 +103,8 @@ src/
     program.ts                # Commander CLI options
   commands/
     downloadSnapshot.ts       # Download one snapshot and its assets
+  deploy/
+    vercel.ts                 # Vercel deploy helpers and orchestrator
   helpers/
     fs.ts                     # ensureDir, targetPath
     html.ts                   # extractAssetUrls
@@ -106,10 +130,13 @@ Covered units:
 - `helpers/html.ts` → `extractAssetUrls()` parsing
 - `helpers/wayback.ts` → `waybackUrlFor()` Wayback modifier selection
 - `requests/cdx.ts` → `buildCdxUrl()` parameter building
+- `deploy/vercel.ts` → `ensureVercelJson()` and `buildVercelArgs()`
 
 Skip prompt; download everything in the range:
 ```bash
 pnpm run start -- https://example.com --no-interactive --from 20200101 --to 20201231
+```
+
 Download all files for the selected snapshot (no digest collapse):
 ```bash
 pnpm run start -- https://example.com --no-dedup
