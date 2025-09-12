@@ -44,6 +44,12 @@ program
   .option("--no-dedup", "Disable digest deduplication in CDX query")
   .parse();
 
+// Require a URL argument; show help if missing
+if (program.args.length < 1) {
+  program.outputHelp();
+  process.exit(1);
+}
+
 const opts = program.opts();
 const rootUrl: string = program.args[0];
 const outDir = path.resolve(opts.out);
