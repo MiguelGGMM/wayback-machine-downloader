@@ -4,6 +4,10 @@
   "description": "Download web pages from the Wayback Machine",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "wayback-machine-downloader": "dist/index.js",
+    "wayback-downloader": "dist/index.js"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:trace": "node --trace-deprecation --import tsx src/index.ts",
@@ -14,10 +18,19 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier . --check",
-    "format:write": "prettier . --write"
+    "format:write": "prettier . --write",
+    "prepublishOnly": "pnpm run build"
   },
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist/**",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "commander": "^14.0.0",
     "p-queue": "^8.1.0",

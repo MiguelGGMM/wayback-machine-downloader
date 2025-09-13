@@ -1,17 +1,4 @@
-#!/usr/bin/env ts-node
-// wayback-downloader.ts – A robust, TypeScript‑first CLI to mirror Wayback Machine snapshots
-// --------------------------------------------------------------------------
-// Features
-//   • Uses the CDX API to list captures for a given domain or URL prefix
-//   • Concurrent downloads with retry & resume support
-//   • Replicates original folder structure under timestamped roots
-//   • Optional date-range filter & link‑rewrite pass (absolute → relative)
-//   • Clean dependency footprint (commander, p‑queue, progress only)
-// --------------------------------------------------------------------------
-// Usage examples
-//   ✔ npx ts-node wayback-downloader.ts https://example.com -o ./archive
-//   ✔ ts-node wayback-downloader.ts https://example.com/blog --from 2018 --to 2020 -c 20 --rewrite
-//   ✔ node build/index.js <URL> [flags]   # after tsc or tsup build
+#!/usr/bin/env node
 
 import PQueue from 'p-queue';
 import ProgressBar from 'progress';
