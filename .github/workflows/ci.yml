@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: ['**']
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     name: Lint, Format, Type-check
@@ -69,7 +73,7 @@ jobs:
 
       - name: Run tests (with coverage)
         if: matrix.os == 'ubuntu-latest' && matrix.node == '20'
-        run: pnpm test -- --coverage
+        run: pnpm test -- --coverage --coverage.reporter=lcov
 
       - name: Upload coverage artifact
         if: matrix.os == 'ubuntu-latest' && matrix.node == '20'
@@ -78,6 +82,31 @@ jobs:
           name: coverage-report
           path: coverage/
 
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '20'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage/lcov.info
+          flags: unittests
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Run tests
         if: matrix.os != 'ubuntu-latest' || matrix.node != '20'
         run: pnpm test
+
+  summary:
+    name: CI Summary
+    needs: [quality, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate job results
+        run: |
+          echo "quality: ${{ needs.quality.result }}"
+          echo "test:    ${{ needs.test.result }}"
+          if [ "${{ needs.quality.result }}" != "success" ] || [ "${{ needs.test.result }}" != "success" ]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          echo "All required jobs succeeded."
