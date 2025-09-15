@@ -1,5 +1,7 @@
 # wayback-machine-downloader
 
+[![codecov](https://codecov.io/gh/MiguelGGMM/wayback-machine-downloader/branch/main/graph/badge.svg)](https://codecov.io/gh/MiguelGGMM/wayback-machine-downloader)
+
 Download web pages from the Wayback Machine
 
 ## Overview
