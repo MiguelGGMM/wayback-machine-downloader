@@ -32,12 +32,9 @@ jobs:
           version: 9
           run_install: false
           standalone: true
-          standalone: true
-          standalone: true
 
       - name: Check pnpm version
         run: pnpm -v
-          standalone: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -76,6 +73,7 @@ jobs:
         with:
           version: 9
           run_install: false
+          standalone: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
