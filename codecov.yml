@@ -4,7 +4,7 @@ codecov:
     after_n_builds: 1
 
 comment:
-  layout: "reach, diff, flags, files"
+  layout: 'reach, diff, flags, files'
   behavior: default
   require_changes: false
   show_carryforward_flags: true
@@ -26,5 +26,5 @@ coverage:
   range: 70..100
 
 ignore:
-  - "**/*.test.ts"
-  - "tests/**"
+  - '**/*.test.ts'
+  - 'tests/**'
