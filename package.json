@@ -8,6 +8,7 @@
     "wayback-machine-downloader": "dist/index.js",
     "wayback-downloader": "dist/index.js"
   },
+  "packageManager": "pnpm@9.x",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "dev:trace": "node --trace-deprecation --import tsx src/index.ts",
